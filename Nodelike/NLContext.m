@@ -32,13 +32,13 @@
 #pragma mark - Scope Setup
 
 + (void)attachToContext:(JSContext *)context {
-    
+
     uv_loop_t *eventLoop = uv_loop_new();
     [context.virtualMachine nodelikeSet:&env_event_loop toValue:[NSValue valueWithPointer:eventLoop]];
-    
+
     uv_check_t *immediate_check_handle = malloc(sizeof(uv_check_t));
     uv_idle_t  *immediate_idle_handle  = malloc(sizeof(uv_idle_t));
-    
+
     immediate_check_handle->data = (__bridge void *)(context);
     uv_check_init(eventLoop, immediate_check_handle);
     uv_unref((uv_handle_t *)immediate_check_handle);
@@ -51,7 +51,7 @@
         NSLog(@"EXC: %@; line: %@, stack: %@", e, [e valueForProperty:@"line"], [e valueForProperty:@"stack"]);
     };
 #endif
-    
+
     JSValue *process = [JSValue valueWithObject:@{
         @"platform": @"darwin",
         @"argv":     @[],
@@ -60,9 +60,9 @@
         @"_asyncFlags": @{},
         @"moduleLoadList": @[]
     } inContext:context];
-    
+
     JSValue __weak *weakProcess = process;
-    
+
     process[@"resourcePath"]      = NLContext.resourcePath;
     process[@"env"][@"NODE_PATH"] = [NLContext.resourcePath stringByAppendingString:@"/node_modules"];
     // used in Hrtime() below
@@ -84,23 +84,30 @@
         return @[[NSNumber numberWithUnsignedInt:(unsigned)(t / NANOS_PER_SEC)],
                  [NSNumber numberWithUnsignedInt:(unsigned)(t % NANOS_PER_SEC)]];
     };
-    
+
     process[@"reallyExit"] = ^(NSNumber *code) {
         exit(code.intValue);
     };
-    
+
     process[@"_kill"] = ^(NSNumber *pid, NSNumber *sig) {
         kill(pid.intValue, sig.intValue);
     };
-    
+
     process[@"binding"] = ^(NSString *binding) {
         return [NLBinding bindingForIdentifier:binding];
     };
-    
+
     process[@"cwd"] = ^{
         return @(getcwd(NULL, 0));
     };
-    
+
+    if (context[@"console"].isUndefined) {
+        context[@"console"] = @{
+            @"log": ^ { NSLog(@"stdio: %@", [JSContext currentArguments]); },
+            @"error": ^{ NSLog(@"stderr: %@", [JSContext currentArguments]); }
+        };
+    }
+
     process[@"_setupAsyncListener"] = ^(JSValue *o, JSValue *r, JSValue *l, JSValue *u) {
         [NLAsync setupAsyncListener:o run:r load:l unload:u];
         [weakProcess deleteProperty:@"_setupAsyncListener"];
@@ -112,20 +119,20 @@
         [NLAsync setupNextTick:obj func:func];
         [weakProcess deleteProperty:@"_setupNextTick"];
     };
-    
+
     id getNeedImmediateCallback = ^{
 
         return [NSNumber numberWithBool:uv_is_active((uv_handle_t *)immediate_check_handle)];
 
     };
-    
+
     id setNeedImmediateCallback = ^(JSValue *value) {
 
         bool active = uv_is_active((uv_handle_t *)immediate_check_handle);
-        
+
         if (active == value.toBool)
             return;
-        
+
         if (active) {
             uv_check_stop(immediate_check_handle);
             uv_idle_stop(immediate_idle_handle);
@@ -133,16 +140,16 @@
             uv_check_start(immediate_check_handle, CheckImmediate);
             uv_idle_start(immediate_idle_handle, IdleImmediateDummy);
         }
-        
+
     };
 
     [process defineProperty:@"_needImmediateCallback"
                  descriptor:@{@"get": getNeedImmediateCallback, @"set": setNeedImmediateCallback}];
-    
+
     [context.virtualMachine nodelikeSet:&env_process_object toValue:process];
 
     JSValue *noop = [context evaluateScript:@"(function(){})"];
-    
+
     context[@"DTRACE_NET_SERVER_CONNECTION"] = noop;
     context[@"DTRACE_NET_STREAM_END"]        = noop;
     context[@"DTRACE_HTTP_CLIENT_REQUEST"]   = noop;
@@ -151,17 +158,17 @@
     context[@"DTRACE_HTTP_SERVER_RESPONSE"]  = noop;
     context[@"DTRACE_NET_SOCKET_READ"]       = noop;
     context[@"DTRACE_NET_SOCKET_WRITE"]      = noop;
-    
+
     context[@"COUNTER_NET_SERVER_CONNECTION"]       = noop;
     context[@"COUNTER_NET_SERVER_CONNECTION_CLOSE"] = noop;
     context[@"COUNTER_HTTP_SERVER_REQUEST"]         = noop;
     context[@"COUNTER_HTTP_SERVER_RESPONSE"]        = noop;
     context[@"COUNTER_HTTP_CLIENT_REQUEST"]         = noop;
     context[@"COUNTER_HTTP_CLIENT_RESPONSE"]        = noop;
-    
+
     [context evaluateScript:@"Error.captureStackTrace = function (e) { e.stack = 'Trace: ' + e.message };"];
     [context evaluateScript:@"Number.isFinite = function (value) { return typeof value === 'number' && isFinite(value); };"];
-    
+
     JSValue *constructor = [context evaluateScript:[NLNatives source:@"node"]];
     [constructor callWithArguments:@[process]];
 }
@@ -213,11 +220,11 @@ static dispatch_queue_t dispatchQueue () {
 
 + (int)emitExit:(JSContext *)context {
     JSValue *process = [context.virtualMachine nodelikeGet:&env_process_object];
-    
+
     process[@"_exiting"] = [NSNumber numberWithBool:YES];
-    
+
     int code = process[@"exitCode"].toInt32;
-    
+
     [NLAsync makeGlobalCallback:process[@"emit"]
                      fromObject:process
                   withArguments:@[@"exit", @(code)]];
