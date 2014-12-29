@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AF323D731A50C16600BAAB5B /* NLTTY.m in Sources */ = {isa = PBXBuildFile; fileRef = DA49974718D899480078FCB1 /* NLTTY.m */; };
 		B5061A3A1815A9B00083AB4B /* NLCares.m in Sources */ = {isa = PBXBuildFile; fileRef = B5061A391815A9B00083AB4B /* NLCares.m */; };
 		B50A48EB18C01CDF00656FA3 /* test-timers.js in Resources */ = {isa = PBXBuildFile; fileRef = B572E28418B94E32005E6403 /* test-timers.js */; };
 		B50A48EC18C01CF000656FA3 /* test-timers-zero-timeout.js in Resources */ = {isa = PBXBuildFile; fileRef = B572E28318B94E32005E6403 /* test-timers-zero-timeout.js */; };
@@ -2611,6 +2612,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF323D731A50C16600BAAB5B /* NLTTY.m in Sources */,
 				B54109D018BCBE0900FC854A /* NLAsync.m in Sources */,
 				B54109D118BCBE0900FC854A /* NLHTTPParser.m in Sources */,
 				B54109D218BCBE0900FC854A /* NSObject+Nodelike.m in Sources */,
